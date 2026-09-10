@@ -6,6 +6,7 @@ type Reading = { id: number; suhu: number; kelembaban: number; recorded_at: stri
 type StatusResponse = {
   online: boolean;
   lastSeen: string | null;
+  live: { suhu: number; kelembaban: number; recorded_at: string } | null;
   latest: Reading | null;
   todayCount: number;
   target: number;
