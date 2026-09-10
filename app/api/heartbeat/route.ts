@@ -3,9 +3,6 @@ import { getSupabaseServer } from "@/lib/supabaseClient";
 
 export const dynamic = "force-dynamic";
 
-// ESP32 boleh ping endpoint ini tiap beberapa menit (terpisah dari data
-// jam-an) supaya indikator "terhubung" di UI real-time, bukan cuma
-// update tiap jam.
 export async function POST(req: NextRequest) {
   const key = req.headers.get("x-api-key");
   if (!key || key !== process.env.DEVICE_API_KEY) {
@@ -15,11 +12,17 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const deviceId = body.device_id || "esp32-dht11";
 
-  const supabase = getSupabaseServer();
-  await supabase.from("device_status").upsert({
+  const update: Record<string, unknown> = {
     device_id: deviceId,
     last_seen: new Date().toISOString(),
-  });
+  };
+  if (typeof body.suhu === "number" && typeof body.kelembaban === "number") {
+    update.suhu = body.suhu;
+    update.kelembaban = body.kelembaban;
+  }
+
+  const supabase = getSupabaseServer();
+  await supabase.from("device_status").upsert(update);
 
   return NextResponse.json({ ok: true });
 }

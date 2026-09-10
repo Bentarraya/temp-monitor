@@ -18,7 +18,7 @@ export async function GET() {
     .limit(1)
     .maybeSingle();
 
-  const online = status ? Date.now() - new Date(status.last_seen).getTime() < 5 * 60 * 1000 : false;
+  const online = status ? Date.now() - new Date(status.last_seen).getTime() < 90 * 1000 : false;
 
   // "live" = pembacaan sensor paling baru (device_status di-update tiap
   // kali ESP32 kirim data, walau itu ditolak masuk log per-jam).
