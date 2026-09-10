@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServer } from "@/lib/supabaseClient";
+import { checkAndSyncIfFull } from "@/lib/syncSheet";
 
 export const dynamic = "force-dynamic";
 
@@ -65,5 +66,6 @@ export async function POST(req: NextRequest) {
     kelembaban: body.kelembaban,
   });
 
-  return NextResponse.json({ ok: true });
+  const syncResult = await checkAndSyncIfFull();
+  return NextResponse.json({ ok: true, sync: syncResult });
 }
