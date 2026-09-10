@@ -11,5 +11,11 @@ export function getSupabaseServer() {
   }
   return createClient(url, key, {
     auth: { persistSession: false },
+    global: {
+      // Paksa no-store: Vercel/Next.js suka nge-cache fetch ke API luar
+      // (termasuk request Supabase-js), walaupun route-nya udah dynamic.
+      fetch: (input, init) =>
+        fetch(input, { ...init, cache: "no-store" }),
+    },
   });
 }
