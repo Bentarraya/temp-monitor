@@ -21,12 +21,20 @@ export async function GET() {
   const online = status ? Date.now() - new Date(status.last_seen).getTime() < 5 * 60 * 1000 : false;
   const latest = readings && readings.length > 0 ? readings[readings.length - 1] : null;
 
-  return NextResponse.json({
-    online,
-    lastSeen: status?.last_seen ?? null,
-    latest,
-    todayCount: readings?.length ?? 0,
-    target: 24,
-    readings: readings ?? [],
-  });
+  return NextResponse.json(
+    {
+      online,
+      lastSeen: status?.last_seen ?? null,
+      latest,
+      todayCount: readings?.length ?? 0,
+      target: 24,
+      readings: readings ?? [],
+    },
+    {
+      headers: {
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+        Pragma: "no-cache",
+      },
+    }
+  );
 }
