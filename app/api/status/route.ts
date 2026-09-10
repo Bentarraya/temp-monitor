@@ -19,12 +19,21 @@ export async function GET() {
     .maybeSingle();
 
   const online = status ? Date.now() - new Date(status.last_seen).getTime() < 5 * 60 * 1000 : false;
+
+  // "live" = pembacaan sensor paling baru (device_status di-update tiap
+  // kali ESP32 kirim data, walau itu ditolak masuk log per-jam).
+  // "latest" (dari tabel readings) tetap dikirim buat referensi log resmi.
+  const live =
+    status && status.suhu !== null
+      ? { suhu: status.suhu, kelembaban: status.kelembaban, recorded_at: status.last_seen }
+      : null;
   const latest = readings && readings.length > 0 ? readings[readings.length - 1] : null;
 
   return NextResponse.json(
     {
       online,
       lastSeen: status?.last_seen ?? null,
+      live,
       latest,
       todayCount: readings?.length ?? 0,
       target: 24,

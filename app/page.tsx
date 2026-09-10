@@ -53,7 +53,7 @@ export default function Page() {
     };
   }, []);
 
-  const latest = data?.latest;
+  const latest = data?.live ?? data?.latest;
   const count = data?.todayCount ?? 0;
   const target = data?.target ?? 24;
   const history = data?.readings ?? [];
