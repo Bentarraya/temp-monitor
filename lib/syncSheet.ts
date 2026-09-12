@@ -1,5 +1,5 @@
 import { getSupabaseServer } from "@/lib/supabaseClient";
-import { writeRowsToSheet, archiveSheetToDrive, clearWorkingSheet } from "@/lib/googleSheets";
+import { writeRowsToSheet, archiveToNewTab, clearWorkingSheet } from "@/lib/googleSheets";
 
 const TARGET_ROWS = 24;
 
@@ -15,26 +15,25 @@ export async function checkAndSyncIfFull() {
     return { synced: false, count: rows?.length ?? 0 };
   }
 
-  const dateLabel = new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  const dateLabel =
+    d.toISOString().slice(0, 10) + "_" + d.toISOString().slice(11, 16).replace(":", "");
 
   try {
     await writeRowsToSheet(rows);
-    const driveFileId = await archiveSheetToDrive(dateLabel);
+    const archiveTab = await archiveToNewTab(dateLabel);
     await clearWorkingSheet();
 
     await supabase.from("readings").delete().gte("id", 0);
     await supabase.from("sync_log").insert({
       rows_synced: rows.length,
-      drive_file_id: driveFileId,
+      drive_file_id: archiveTab,
     });
 
-    return { synced: true, count: rows.length, driveFileId };
+    return { synced: true, count: rows.length, archiveTab };
   } catch (err) {
-    // Jangan biarin ini bikin seluruh request /api/readings gagal —
-    // data sensor tetap kesimpen, tapi sync-nya dilaporin gagal biar
-    // ketauan errornya, bukan diam-diam nyangkut.
     const message = err instanceof Error ? err.message : String(err);
-    console.error("Sync ke Google Sheet/Drive gagal:", message);
+    console.error("Sync ke Google Sheet gagal:", message);
     return { synced: false, count: rows.length, error: message };
   }
 }

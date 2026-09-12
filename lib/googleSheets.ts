@@ -7,10 +7,7 @@ function getAuth() {
   return new google.auth.JWT({
     email,
     key: privateKey,
-    scopes: [
-      "https://www.googleapis.com/auth/spreadsheets",
-      "https://www.googleapis.com/auth/drive",
-    ],
+    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
   });
 }
 
@@ -18,9 +15,7 @@ type Row = { recorded_at: string; suhu: number; kelembaban: number };
 
 const SHEET_ID = () => process.env.GOOGLE_SHEET_ID!;
 const SHEET_TAB = () => process.env.GOOGLE_SHEET_TAB || "Data";
-const ARCHIVE_FOLDER = () => process.env.GOOGLE_DRIVE_ARCHIVE_FOLDER_ID!;
 
-// Tulis header + baris data (waktu, suhu, kelembaban) ke sheet kerja.
 export async function writeRowsToSheet(rows: Row[]) {
   const auth = getAuth();
   const sheets = google.sheets({ version: "v4", auth });
@@ -35,7 +30,6 @@ export async function writeRowsToSheet(rows: Row[]) {
     ]),
   ];
 
-  // Bersihkan sheet dulu, baru tulis ulang dari baris pertama
   await sheets.spreadsheets.values.clear({
     spreadsheetId: SHEET_ID(),
     range: `${tab}!A:C`,
@@ -49,26 +43,43 @@ export async function writeRowsToSheet(rows: Row[]) {
   });
 }
 
-// Salin file spreadsheet ke folder arsip di Drive dengan nama bertanggal.
-// Google Sheets otomatis tersimpan di Drive; "menyimpan ke drive" di sini
-// diwujudkan sebagai snapshot harian yang diarsipkan (biar histori tiap
-// hari tidak ketimpa waktu sheet kerja direset).
-export async function archiveSheetToDrive(dateLabel: string) {
+// Duplikat tab kerja jadi tab arsip baru DI DALAM spreadsheet yang sama
+// (bukan bikin file baru di Drive). Service account nggak punya kuota
+// storage Drive sendiri, jadi bikin FILE baru selalu gagal "storage
+// quota exceeded" -- tapi nambah/ubah isi file yang udah ada sama
+// sekali nggak kena kuota itu.
+export async function archiveToNewTab(dateLabel: string) {
   const auth = getAuth();
-  const drive = google.drive({ version: "v3", auth });
+  const sheets = google.sheets({ version: "v4", auth });
 
-  const copy = await drive.files.copy({
-    fileId: SHEET_ID(),
+  const meta = await sheets.spreadsheets.get({ spreadsheetId: SHEET_ID() });
+  const workingSheet = meta.data.sheets?.find(
+    (s) => s.properties?.title === SHEET_TAB()
+  );
+  const sheetId = workingSheet?.properties?.sheetId;
+  if (sheetId === undefined || sheetId === null) {
+    throw new Error(`Tab kerja "${SHEET_TAB()}" tidak ditemukan di spreadsheet`);
+  }
+
+  const newTitle = `Arsip-${dateLabel}`;
+
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: SHEET_ID(),
     requestBody: {
-      name: `Suhu-Kelembaban-${dateLabel}`,
-      parents: [ARCHIVE_FOLDER()],
+      requests: [
+        {
+          duplicateSheet: {
+            sourceSheetId: sheetId,
+            newSheetName: newTitle,
+          },
+        },
+      ],
     },
   });
 
-  return copy.data.id as string;
+  return newTitle;
 }
 
-// Kosongkan lagi sheet kerja (cuma header) setelah diarsipkan.
 export async function clearWorkingSheet() {
   const auth = getAuth();
   const sheets = google.sheets({ version: "v4", auth });
