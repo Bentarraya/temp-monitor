@@ -1,8 +1,26 @@
 import { createClient } from "@supabase/supabase-js";
 
-// Dipakai HANYA di server (API routes). Pakai service role key supaya
-// bisa insert/select/delete tanpa terganjal RLS, dan key ini tidak
-// pernah dikirim ke browser karena tidak diprefix NEXT_PUBLIC_.
+async function fetchWithRetry(input: RequestInfo | URL, init?: RequestInit, retries = 2): Promise<Response> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(input, { ...init, cache: "no-store" });
+      // 502/503/504 = masalah sementara di server Supabase, layak dicoba ulang
+      if ([502, 503, 504].includes(res.status) && attempt < retries) {
+        await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+        continue;
+      }
+      return res;
+    } catch (err) {
+      if (attempt < retries) {
+        await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error("fetchWithRetry: kehabisan percobaan");
+}
+
 export function getSupabaseServer() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -12,10 +30,7 @@ export function getSupabaseServer() {
   return createClient(url, key, {
     auth: { persistSession: false },
     global: {
-      // Paksa no-store: Vercel/Next.js suka nge-cache fetch ke API luar
-      // (termasuk request Supabase-js), walaupun route-nya udah dynamic.
-      fetch: (input, init) =>
-        fetch(input, { ...init, cache: "no-store" }),
+      fetch: (input, init) => fetchWithRetry(input, init),
     },
   });
 }
